@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#1a1510">
+  <meta name="description" content="ブラウザで遊べる五目並べ。CPU の強さを4段階から選べて、自由ルールと連珠ルール（禁じ手あり）に対応。">
+  <title>五目並べ</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='8' fill='%23dcae66'/%3E%3Cpath d='M20 4v56M32 4v56M44 4v56M4 20h56M4 32h56M4 44h56' stroke='%23563a17' stroke-width='2'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%23111'/%3E%3Ccircle cx='44' cy='20' r='10' fill='%23f4f1ea' stroke='%23999' stroke-width='1'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="topbar">
+      <div class="brand"><span class="mark">五</span><span class="name">五目並べ</span></div>
+      <span class="pill" id="ruleLabel">自由ルール</span>
+      <div class="spacer"></div>
+      <nav class="tools">
+        <button class="icon-btn" id="btnUndo" aria-label="待った（1手戻す）" title="待った（Ctrl+Z）" disabled>
+          <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        </button>
+        <button class="icon-btn" id="btnRules" aria-label="ルール" title="ルール">
+          <svg viewBox="0 0 24 24"><path d="M4 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4zM20 4h-5a3 3 0 0 0-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M20 4v14h-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+        </button>
+        <button class="icon-btn" id="btnMenu" aria-label="設定" title="設定">
+          <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section id="players">
+        <div class="player" id="plYou"><span class="stone-icon"></span><span class="who">あなた</span><span class="sub" id="youColor"></span></div>
+        <div class="turn-meter" id="moveCount">0手</div>
+        <div class="player cpu" id="plCpu"><span class="stone-icon"></span><span class="who">CPU</span><span class="sub" id="cpuLevel"></span><span class="thinking" id="thinking"><i></i><i></i><i></i></span></div>
+      </section>
+
+      <section id="boardWrap">
+        <div id="board" role="grid" aria-label="碁盤">
+          <svg id="grid" aria-hidden="true"></svg>
+          <div id="marks" aria-hidden="true"></div>
+          <div id="stones"></div>
+          <svg id="winLine" aria-hidden="true"></svg>
+          <div id="ghost" aria-hidden="true"></div>
+        </div>
+      </section>
+
+      <section id="side">
+        <div id="status" aria-live="polite"></div>
+        <div id="actions">
+          <button class="secondary" id="btnUndo2" disabled>
+            <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            待った
+          </button>
+          <button class="primary" id="btnPlace" hidden>ここに置く</button>
+          <button class="primary" id="btnAgain" hidden>もう一局</button>
+          <button class="secondary" id="btnNew">新しい対局</button>
+        </div>
+        <ol id="kifu" aria-label="棋譜"></ol>
+      </section>
+      <div id="toast" aria-live="assertive"></div>
+    </main>
+  </div>
+
+  <!-- タイトル・対局設定 -->
+  <div class="overlay show" id="ovTitle">
+    <div class="sheet title-sheet">
+      <div class="title-stones" aria-hidden="true"><i class="b"></i><i class="w"></i><i class="b"></i><i class="w"></i><i class="b"></i></div>
+      <h1>五目並べ</h1>
+      <p class="lead">縦・横・斜めに、先に五つ並べたほうの勝ち。</p>
+
+      <div class="field-group">
+        <div class="label">ルール</div>
+        <div class="seg" id="ruleSeg">
+          <button data-v="free">自由ルール</button>
+          <button data-v="renju">連珠ルール</button>
+        </div>
+        <div class="desc"><span id="ruleDesc"></span> <button class="link" id="btnRuleMore">詳しく</button></div>
+      </div>
+      <div class="field-group">
+        <div class="label">あなたの手番</div>
+        <div class="seg" id="colorSeg">
+          <button data-v="black"><span class="dot b"></span>黒・先手</button>
+          <button data-v="white"><span class="dot w"></span>白・後手</button>
+          <button data-v="alt">交互</button>
+        </div>
+      </div>
+      <div class="field-group">
+        <div class="label">CPU の強さ</div>
+        <div class="seg levels" id="levelSeg"></div>
+        <div class="desc" id="statLine"></div>
+      </div>
+
+      <button class="primary big resume" id="btnResume" hidden>続きから</button>
+      <button class="primary big" id="btnStart">対局をはじめる</button>
+      <div class="title-links"><button class="link" id="btnTitleRules">遊び方とルール</button></div>
+    </div>
+  </div>
+
+  <!-- 結果 -->
+  <div class="overlay peek" id="ovResult">
+    <div class="sheet result-sheet">
+      <div class="result-title" id="resultTitle"></div>
+      <div class="result-sub" id="resultSub"></div>
+      <div class="btn-row">
+        <button class="secondary" id="btnLook">盤面を見る</button>
+        <button class="primary" id="btnAgain2">もう一局</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ルール -->
+  <div class="overlay" id="ovRules">
+    <div class="sheet wide rules-sheet">
+      <button class="close" data-close aria-label="閉じる">×</button>
+      <h2>遊び方とルール</h2>
+      <div class="tabs" id="ruleTabs">
+        <button data-tab="basic" class="on">基本</button>
+        <button data-tab="renju">連珠の禁じ手</button>
+        <button data-tab="ops">操作</button>
+      </div>
+      <div class="tab-body" data-tab="basic">
+        <p>黒と白が交互に、盤の線の交わる点に石を一つずつ置きます。<b>縦・横・斜めのどれかに自分の石を五つ続けて並べたほうの勝ち</b>です。黒が先手です。置いた石は動かしたり取ったりしません。</p>
+        <div class="diagrams" id="dgBasic"></div>
+        <h3>ことば</h3>
+        <dl class="terms">
+          <dt>四（し）</dt><dd>あと一つで五になる形。相手はすぐ止めないと負けます。</dd>
+          <dt>達四（たっし）</dt><dd>両端どちらに置いても五になる四。止めきれないので、作れば勝ちです。</dd>
+          <dt>三（さん）</dt><dd>あと一つで達四になる形。放っておくと達四にされるので、ふつうは止めます。</dd>
+          <dt>四三（しさん）</dt><dd>四と三を同時に作る手。四を止めているあいだに三が達四になり、勝ちが決まります。</dd>
+        </dl>
+        <h3>2つのルール</h3>
+        <dl class="terms">
+          <dt>自由ルール</dt><dd>禁じ手はありません。六つ以上並んだ「長連」も勝ちです。黒（先手）がかなり有利です。</dd>
+          <dt>連珠ルール</dt><dd>先手の黒だけに禁じ手（三三・四四・長連）があります。白には禁じ手がなく、白は長連でも勝ちです。先手の有利をやわらげる、競技で使われるルールです。</dd>
+        </dl>
+        <p class="note">盤がすべて埋まって勝負がつかなければ引き分けです。</p>
+      </div>
+      <div class="tab-body" data-tab="renju" hidden>
+        <p>連珠ルールでは、黒は次の手を打てません（このゲームでは禁じ手の点には置けないようにしています。盤上の <span class="x-mark">×</span> が禁じ手の点です）。</p>
+        <div class="diagrams" id="dgRenju"></div>
+        <ul class="bullets">
+          <li><b>五が優先</b>：その手でちょうど五ができるなら、同時に三三や四四になっていても勝ちです。</li>
+          <li><b>四三はOK</b>：四と三を同時に作る手は禁じ手ではなく、黒の勝ち筋です。</li>
+          <li><b>三の数え方</b>：片側が止められていて達四にならない並びや、達四にするための点が禁じ手になる並びは「三」に数えません。</li>
+          <li>白はわざと黒の禁じ手の点を作って、黒が止められないようにする戦法が使えます。CPU も使ってきます。</li>
+        </ul>
+        <p class="note">本式の連珠には珠型（開局の決まり）や「交替打ち」もありますが、このゲームでは使いません。</p>
+      </div>
+      <div class="tab-body" data-tab="ops" hidden>
+        <ul class="bullets">
+          <li>点をクリック（タップ）すると石を置きます。スマホでは最初のタップで仮置きされ、同じ点をもう一度タップするか「ここに置く」で確定します（設定で変えられます）。</li>
+          <li><b>待った</b>：いつでも自分の直前の手まで戻せます。CPU が考えている途中でも、勝負がついたあとでも使えます。<kbd>Ctrl</kbd>+<kbd>Z</kbd> でも戻せます。</li>
+          <li>対局は自動で保存され、ページを閉じても続きから遊べます。</li>
+          <li>設定（≡）で効果音・手数の表示・座標の表示・禁じ手の表示を切り替えられます。</li>
+        </ul>
+        <h3>CPU の強さ</h3>
+        <dl class="terms" id="levelTerms"></dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- 設定 -->
+  <div class="overlay" id="ovMenu">
+    <div class="sheet menu-sheet">
+      <button class="close" data-close aria-label="閉じる">×</button>
+      <h2>設定</h2>
+      <div class="field-group">
+        <div class="label">置く前に確認</div>
+        <div class="seg" id="confirmSeg"><button data-v="auto">スマホだけ</button><button data-v="on">いつも</button><button data-v="off">しない</button></div>
+      </div>
+      <label class="switch"><input type="checkbox" id="optNumbers"><span>手数を石に表示</span></label>
+      <label class="switch"><input type="checkbox" id="optCoords"><span>座標を表示</span></label>
+      <label class="switch"><input type="checkbox" id="optForbidden"><span>黒の禁じ手の点を表示（連珠ルール）</span></label>
+      <label class="switch"><input type="checkbox" id="optSound"><span>効果音</span></label>
+      <div class="field-group">
+        <div class="label">音量</div>
+        <input type="range" id="optVolume" min="0" max="1" step="0.05">
+      </div>
+      <div class="btn-row">
+        <button class="danger" id="btnResign">投了する</button>
+        <button class="secondary" id="btnToTitle">新しい対局</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/ui.js"></script>
+</body>
+</html>
