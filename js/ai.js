@@ -3,7 +3,7 @@
 import { N, SIZE, EMPTY, BLACK, WHITE, DIRS, at, xy, other, forbidden, winsBy } from './rules.js';
 
 export const LEVELS = [
-  { id: 0, name: '初級', desc: 'でたらめに打つ', stars: 1 },
+  { id: 0, name: '初級', desc: 'のんびり打つ', stars: 1 },
   { id: 1, name: '中級', desc: '攻めも守りも素直', stars: 2 },
   { id: 2, name: '上級', desc: '数手先を読む', stars: 3 },
   { id: 3, name: '達人', desc: '四追いまで読み切る', stars: 4 },
@@ -303,8 +303,6 @@ export class Engine {
 // board: 現在の盤、c: CPU の色、opts.rng: 0〜1 の乱数関数
 export function chooseMove(board, c, rule, level, opts = {}) {
   const rng = opts.rng || Math.random;
-  // 初級は空いている合法手から完全にランダム（連珠の黒は禁じ手を除く）
-  if (level === 0) return pickRandom(board, c, rule, rng);
   const e = new Engine(board, rule);
   const o = other(c);
   if (e.stones === 0) return at(7, 7);
@@ -323,12 +321,13 @@ export function chooseMove(board, c, rule, level, opts = {}) {
     return near[Math.floor(rng() * near.length)].q;
   }
 
-  // 自分の五は必ず打つ。相手の五は必ず止める
+  // 自分の五は必ず打つ。相手の五は（初級でもほぼ）止める
   const mine = e.fives(c);
   if (mine.length) return mine[0];
   const threats = e.fives(o).filter((p) => e.legal(p, c));
-  if (threats.length) return threats[0];
+  if (threats.length && (level > 0 || rng() < 0.85)) return threats[0];
 
+  if (level === 0) return pickNoisy(e, c, rng, 6, 0.55);
   if (level === 1) return pickNoisy(e, c, rng, 3, 0.9);
 
   const deep = level === 3;
@@ -400,17 +399,6 @@ function pickNoisy(e, c, rng, top, keep) {
   if (!cands.length) return firstEmpty(e.board);
   for (const m of cands) if (rng() < keep) return m.p;
   return cands[cands.length - 1].p;
-}
-
-function pickRandom(board, c, rule, rng) {
-  const moves = [];
-  for (let p = 0; p < SIZE; p++) {
-    if (board[p] !== EMPTY) continue;
-    if (rule === 'renju' && c === BLACK && forbidden(board, p, 'renju')) continue;
-    moves.push(p);
-  }
-  if (!moves.length) return firstEmpty(board);
-  return moves[Math.floor(rng() * moves.length)];
 }
 
 function firstEmpty(board) {
