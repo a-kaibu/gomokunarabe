@@ -125,12 +125,25 @@ test('座標表記', () => {
 });
 
 test('CPU は五を打ち、相手の四を止める', () => {
-  for (const level of [0, 1, 2, 3]) {
+  for (const level of [1, 2, 3]) {
     const b = board(['XOOOO.', '.XXX..']);
     assert.equal(chooseMove(b, WHITE, 'free', level, { rng: seeded(1) }), P(5, 0), `level ${level} は勝つ`);
     const b2 = board(['XOOOO.', '.XXX..', '.X....']);
-    assert.equal(chooseMove(b2, BLACK, 'free', Math.max(1, level), { rng: seeded(1) }), P(5, 0), `level ${level} は止める`);
+    assert.equal(chooseMove(b2, BLACK, 'free', level, { rng: seeded(1) }), P(5, 0), `level ${level} は止める`);
   }
+});
+
+test('初級は合法手から一様ランダムに打つ', () => {
+  const b = board(['XOOOO.', '.XXX..']);
+  const seen = new Set();
+  const rng = seeded(7);
+  for (let i = 0; i < 200; i++) {
+    const m = chooseMove(b, WHITE, 'free', 0, { rng });
+    assert.equal(b[m], EMPTY);
+    seen.add(m);
+  }
+  assert.ok(seen.size > 100, `いろいろな点に打つ (${seen.size})`);
+  assert.ok(seen.has(at(14, 14)), '端にも打つ');
 });
 
 test('上級以上は四追いを見つける', () => {
